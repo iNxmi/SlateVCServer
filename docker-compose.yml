@@ -1,12 +1,13 @@
 volumes:
+  slate:
   postgres:
   cassandra:
   valkey:
-  slate:
 
 services:
   slate:
     build: .
+    restart: no
     ports:
       - "8000:8000"
     volumes:
@@ -14,6 +15,7 @@ services:
 
   postgres:
     image: postgres:18
+    restart: no
     environment:
       POSTGRES_DB: slatevcserver
       POSTGRES_USER: slatevcserver
@@ -25,11 +27,16 @@ services:
 
   cassandra:
     image: cassandra:6.0
-    volumes:
-      - cassandra:/var/lib/cassandra
+    restart: no
     ports:
       - "9042:9042"
+    volumes:
+      - cassandra:/var/lib/cassandra
 
   valkey:
     image: valkey/valkey:9
+    restart: no
+    ports:
+      - "6379:6379"
     volumes:
+      - valkey:/data
