@@ -1,0 +1,35 @@
+volumes:
+  postgres:
+  cassandra:
+  valkey:
+  slate:
+
+services:
+  slate:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - slate:/var/lib/slatevcserver
+
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: slatevcserver
+      POSTGRES_USER: slatevcserver
+      POSTGRES_PASSWORD: slatevcserver
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql
+
+  cassandra:
+    image: cassandra:6.0
+    volumes:
+      - cassandra:/var/lib/cassandra
+    ports:
+      - "9042:9042"
+
+  valkey:
+    image: valkey/valkey:9
+    volumes:
