@@ -5,13 +5,13 @@ volumes:
   valkey:
 
 services:
-  slate:
-    build: .
-    restart: no
-    ports:
-      - "8000:8000"
-    volumes:
-      - slate:/var/lib/slatevcserver
+#  slate:
+#    build: .
+#    restart: no
+#    ports:
+#      - "8000:8000"
+#    volumes:
+#      - slate:/var/lib/slatevcserver
 
   postgres:
     image: postgres:18

@@ -2,37 +2,40 @@
 const POSTGRES_URL: &str = "pgsql://username:password@localhost/database";
 
 use sqlx::postgres::PgPoolOptions;
+use sqlx::types::Uuid;
+
+#[derive(Debug, sqlx::FromRow)]
+struct User {
+    id: Uuid,
+
+    login_name: String,
+    password_hash: String,
+
+    display_name: Option<String>
+}
+
 async fn test_postgres() -> Result<(), sqlx::Error> {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(POSTGRES_URL)
-        .await?;
+    let pool = PgPoolOptions::new().connect(POSTGRES_URL).await?;
 
-    sqlx::query("CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username VARCHAR(32) UNIQUE,
-        password VARCHAR(32)
-    )")
-        .execute(&pool)
-        .await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
 
-    sqlx::query("INSERT INTO users (id, username, password) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING")
-        .bind(2_i32)
-        .bind("memphis33333")
+    sqlx::query("INSERT INTO users (login_name, password_hash) VALUES ($1, $2) ON CONFLICT (login_name) DO NOTHING")
+        .bind("memphis")
         .bind("password123!")
         .execute(&pool)
         .await?;
 
-    let row: Vec<(i32, String, String)> = sqlx::query_as("SELECT * FROM users")
+    let users: Vec<User> = sqlx::query_as("SELECT * FROM users")
         .fetch_all(&pool)
         .await?;
 
-    println!("{:?}", row);
+    println!("{:?}", users);
 
     Ok(())
 }
 
 use scylla::client::session_builder::SessionBuilder;
+
 async fn test_cassandra() -> Result<(), Box<dyn std::error::Error>>{
     let session = SessionBuilder::new()
         .known_node("localhost:9042")
