@@ -20,6 +20,8 @@
           shellHook = ''
             rustup toolchain install stable
 
+            export PATH="$HOME/.cargo/bin:$PATH"
+
             echo "Rust:  $(rustc --version)"
             echo "Cargo: $(cargo --version)"
           '';
