@@ -1,14 +1,14 @@
 CREATE TABLE users
 (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    login_name    TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    username      TEXT UNIQUE NOT NULL,
+    password_hash TEXT        NOT NULL,
     display_name  TEXT
 );
 
 CREATE TABLE roles
 (
-    id   UUID PRIMARY KEY,
+    id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT UNIQUE NOT NULL
 );
 
@@ -21,14 +21,17 @@ CREATE TABLE user_role
 
 CREATE TABLE categories
 (
-    id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id_category UUID REFERENCES categories (id) ON DELETE CASCADE,
+
+    name        TEXT NOT NULL
 );
 
 CREATE TABLE channels
 (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    category_id UUID REFERENCES categories (id) ON DELETE CASCADE,
+    id_category UUID REFERENCES categories (id) ON DELETE CASCADE,
+
     type        TEXT NOT NULL CHECK (type IN ('TEXT', 'VOICE')),
     name        TEXT NOT NULL
 );

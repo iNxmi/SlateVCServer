@@ -15,6 +15,11 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             rustup
+            gcc
+            gnumake
+            lld
+            pkg-config
+            openssl
           ];
 
           shellHook = ''

@@ -1,87 +1,87 @@
+use async_graphql::{Context, EmptyMutation, EmptySubscription, Object, Schema, SimpleObject};
+use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
+use axum::{routing::post, Router};
+use sqlx::{postgres::PgPoolOptions, PgPool, types::Uuid, FromRow};
+use tokio::net::TcpListener;
+use scylla::client::session_builder::SessionBuilder;
+use scylla_migrate::Migrator;
+use scylla::client::session::Session;
 
 const POSTGRES_URL: &str = "pgsql://username:password@localhost/database";
+const CASSANDRA_URL : &str = "localhost:9042";
 
-use sqlx::postgres::PgPoolOptions;
-use sqlx::types::Uuid;
-
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, FromRow, SimpleObject)]
 struct User {
     id: Uuid,
 
-    login_name: String,
+    username: String,
     password_hash: String,
 
     display_name: Option<String>
 }
 
-async fn test_postgres() -> Result<(), sqlx::Error> {
-    let pool = PgPoolOptions::new().connect(POSTGRES_URL).await?;
+struct Query;
 
-    sqlx::migrate!("./migrations").run(&pool).await?;
+#[Object]
+impl Query {
+    async fn user(&self, context: &Context<'_>, id: Uuid) -> async_graphql::Result<Option<User>> {
+        let pool = context.data::<PgPool>()?;
 
-    sqlx::query("INSERT INTO users (login_name, password_hash) VALUES ($1, $2) ON CONFLICT (login_name) DO NOTHING")
-        .bind("memphis")
-        .bind("password123!")
-        .execute(&pool)
-        .await?;
+        let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
 
-    let users: Vec<User> = sqlx::query_as("SELECT * FROM users")
-        .fetch_all(&pool)
-        .await?;
-
-    println!("{:?}", users);
-
-    Ok(())
+        Ok(user)
+    }
 }
 
-use scylla::client::session_builder::SessionBuilder;
+type ApplicationSchema = Schema<Query, EmptyMutation, EmptySubscription>;
 
-async fn test_cassandra() -> Result<(), Box<dyn std::error::Error>>{
+async fn graphql_handler(
+    schema: axum::extract::State<ApplicationSchema>,
+    request: GraphQLRequest
+) -> GraphQLResponse {
+    schema.execute(request.into_inner()).await.into()
+}
+
+async fn setup_postgres() -> Result<PgPool, Box<dyn std::error::Error>> {
+    let pool = PgPoolOptions::new()
+        .connect(POSTGRES_URL)
+        .await?;
+
+    sqlx::migrate!("./migrations/postgres").run(&pool).await?;
+
+    Ok(pool)
+}
+
+async fn setup_cassandra() -> Result<Session, Box<dyn std::error::Error>> {
     let session = SessionBuilder::new()
-        .known_node("localhost:9042")
+        .known_node(CASSANDRA_URL)
         .build()
         .await?;
 
-    session.query_unpaged(
-        "CREATE KEYSPACE IF NOT EXISTS history WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1}",
-        (),
-    ).await?;
+    let cassandra_migrator = Migrator::new(&session, "./migrations/cassandra");
+    cassandra_migrator.run().await?;
 
-    session.query_unpaged(
-        "CREATE TABLE IF NOT EXISTS history.messages (
-            channel_id INT PRIMARY KEY,
-            content TEXT
-        )",
-        (),
-    ).await?;
-
-    session.query_unpaged(
-        "INSERT INTO history.messages (channel_id, content) VALUES (?, ?)",
-        (2_i32, "Hello World!")
-    ).await?;
-
-    let result = session.query_unpaged(
-        "SELECT content FROM history.messages",
-        ()
-    ).await?.into_rows_result()?;
-
-    for row in result.rows()? {
-        let (content,): (String,) = row?;
-        println!("{}", content);
-    }
-
-    Ok(())
+    Ok(session)
 }
-
-// async fn test_valkey() -> Result<(), sqlx::Error>{
-//
-// }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    test_postgres().await?;
-    test_cassandra().await?;
-    // test_valkey().await?;
-    
+    let postgres = setup_postgres().await?;
+    let cassandra = setup_cassandra().await?;
+
+    let schema = Schema::build(Query, EmptyMutation, EmptySubscription)
+        .data(postgres)
+        .finish();
+
+    let application = Router::new()
+        .route("/graphql", post(graphql_handler))
+        .with_state(schema);
+
+    let listener = TcpListener::bind("0.0.0.0:3000").await?;
+    axum::serve(listener, application).await?;
+
     Ok(())
 }
