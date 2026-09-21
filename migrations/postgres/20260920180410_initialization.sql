@@ -32,6 +32,6 @@ CREATE TABLE channels
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     id_category UUID REFERENCES categories (id) ON DELETE CASCADE,
 
-    type        TEXT NOT NULL CHECK (type IN ('TEXT', 'VOICE')),
+    class       TEXT NOT NULL CHECK (class IN ('text', 'voice')),
     name        TEXT NOT NULL
 );
